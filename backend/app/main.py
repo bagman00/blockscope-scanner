@@ -1,23 +1,36 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 import time
 
 from app.core.config import settings
-from app.core.logging import logger  # ← New better logger
+from app.core.logging import logger
+from app.api.v1.scan import router as scan_router
 
-# Create the FastAPI app
+# Import database components and models
+from app.core.database import Base, engine
+from app.models.scan import Scan  # Ensures the Scan table is registered
+
+# ==================== App Initialization ====================
 app = FastAPI(
     title=settings.APP_NAME,
     version="0.1.0",
     debug=settings.DEBUG,
 )
 
+# Create tables in the database on startup
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables verified/created successfully.")
+except Exception as e:
+    logger.error(f"Database connection/startup failed: {e}")
+
 # ==================== CORS Middleware ====================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Tighten in production
+    allow_origins=["*"],  # Adjust for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,22 +53,37 @@ app.add_middleware(LoggingMiddleware)
 # ==================== Global Error Handler ====================
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # 1. If it's a validation error (422), let FastAPI's internal handler 
+    # show the exact field that failed instead of hiding it.
+    if isinstance(exc, RequestValidationError):
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"detail": exc.errors(), "body": exc.body},
+        )
+
+    # 2. For all other errors, log the full message and return a 500
     logger.error(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal Server Error"},
+        content={
+            "detail": "Internal Server Error",
+            "error_type": type(exc).__name__,
+            "message": str(exc)
+        },
     )
 
-# ==================== Health Check Endpoint ====================
+# ==================== Endpoints & Routers ====================
+
 @app.get("/health")
 async def health_check():
     return {
         "status": "ok",
         "app_name": settings.APP_NAME,
-        "debug": settings.DEBUG,
     }
 
-# ==================== Root Endpoint ====================
+# Include the scan router with the versioned prefix
+app.include_router(scan_router, prefix="/api/v1")
+
 @app.get("/")
 async def root():
     return {"message": f"Welcome to {settings.APP_NAME}! Visit /docs for API documentation."}

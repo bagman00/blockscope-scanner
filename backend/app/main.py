@@ -3,13 +3,9 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 import time
-import logging
 
 from app.core.config import settings
-
-# Set up logging (we'll improve this later in logging.py)
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from app.core.logging import logger  # ← New better logger
 
 # Create the FastAPI app
 app = FastAPI(
@@ -21,7 +17,7 @@ app = FastAPI(
 # ==================== CORS Middleware ====================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to specific origins in production, e.g., ["http://localhost:3000"]
+    allow_origins=["*"],  # Tighten in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,7 +55,7 @@ async def health_check():
         "debug": settings.DEBUG,
     }
 
-# ==================== Root Endpoint (Optional Nice Touch) ====================
+# ==================== Root Endpoint ====================
 @app.get("/")
 async def root():
     return {"message": f"Welcome to {settings.APP_NAME}! Visit /docs for API documentation."}

@@ -1,9 +1,19 @@
 version: '3.9'
 
 services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:password@db:5432/blockscope
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+
   db:
     image: postgres:16
-    restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password

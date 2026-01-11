@@ -1,6 +1,6 @@
 pragma solidity ^0.8.0;
 
-contract TestContract {
+contract Safe {
     mapping(address => uint) public balances;
 
     function deposit() public payable {
@@ -11,9 +11,8 @@ contract TestContract {
         uint bal = balances[msg.sender];
         require(bal > 0);
 
+        balances[msg.sender] = 0; // State updated FIRST
         (bool sent, ) = msg.sender.call{value: bal}("");
         require(sent, "Failed to send Ether");
-
-        balances[msg.sender] = 0;
     }
 }
